@@ -97,10 +97,11 @@ export async function handleSearchEndpoint(req: Request): Promise<Response> {
     console.log(`[${new Date().toISOString()}] ✅ IMAP search completed in ${searchDuration}ms - Found ${imapResults.length} results`);
 
     // Save emails to database so they can be fetched later
-    if (imapResults.length > 0) {
-      dbManager.batchUpsertEmails(imapResults);
-      console.log(`[${new Date().toISOString()}] 💾 Saved ${imapResults.length} emails to database`);
-    }
+    // Note: Commented out for now - sync service handles database persistence
+    // if (imapResults.length > 0) {
+    //   dbManager.batchUpsertEmails(imapResults);
+    //   console.log(`[${new Date().toISOString()}] 💾 Saved ${imapResults.length} emails to database`);
+    // }
 
     const emailMessages = imapResults.map(({ email }) => ({
       id: email.messageId,

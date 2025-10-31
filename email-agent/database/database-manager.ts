@@ -75,7 +75,8 @@ export class DatabaseManager {
     this.db = new Database(dbPath);
     this.db.exec("PRAGMA journal_mode = WAL");
     this.db.exec("PRAGMA foreign_keys = ON");
-    this.initializeDatabase();
+    // Schema initialization disabled - using EmailDatabase schema instead
+    // this.initializeDatabase();
   }
 
   public static getInstance(dbPath?: string): DatabaseManager {
@@ -479,15 +480,20 @@ export class DatabaseManager {
   // Get recent emails
   public getRecentEmails(limit: number = 50, includeRead: boolean = true): EmailRecord[] {
     let sql = `
-      SELECT * FROM emails
-      WHERE folder IN ('INBOX', 'Inbox', '[Gmail]/All Mail')
+      SELECT e.*,
+        GROUP_CONCAT(CASE WHEN r.type = 'to' THEN r.address END, ', ') as to_addresses,
+        GROUP_CONCAT(CASE WHEN r.type = 'cc' THEN r.address END, ', ') as cc_addresses,
+        GROUP_CONCAT(CASE WHEN r.type = 'bcc' THEN r.address END, ', ') as bcc_addresses
+      FROM emails e
+      LEFT JOIN recipients r ON e.id = r.email_id
+      WHERE e.folder IN ('INBOX', 'Inbox', '[Gmail]/All Mail')
     `;
 
     if (!includeRead) {
-      sql += ' AND is_read = 0';
+      sql += ' AND e.is_read = 0';
     }
 
-    sql += ` ORDER BY date_sent DESC LIMIT $limit`;
+    sql += ` GROUP BY e.id ORDER BY e.date_sent DESC LIMIT $limit`;
 
     const query = this.db.prepare(sql);
     const results = query.all({ $limit: limit });
@@ -526,9 +532,15 @@ export class DatabaseManager {
 
     const placeholders = messageIds.map(() => '?').join(',');
     const query = this.db.prepare(`
-      SELECT * FROM emails
-      WHERE message_id IN (${placeholders})
-      ORDER BY date_sent DESC
+      SELECT e.*,
+        GROUP_CONCAT(CASE WHEN r.type = 'to' THEN r.address END, ', ') as to_addresses,
+        GROUP_CONCAT(CASE WHEN r.type = 'cc' THEN r.address END, ', ') as cc_addresses,
+        GROUP_CONCAT(CASE WHEN r.type = 'bcc' THEN r.address END, ', ') as bcc_addresses
+      FROM emails e
+      LEFT JOIN recipients r ON e.id = r.email_id
+      WHERE e.message_id IN (${placeholders})
+      GROUP BY e.id
+      ORDER BY e.date_sent DESC
     `);
     const results = query.all(...messageIds);
 
